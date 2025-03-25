@@ -16,7 +16,7 @@ class BLASTER_API UOverheadWidget : public UUserWidget
 	GENERATED_BODY()
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta = (BindWidget, AllowPrivateAccess = "true"))
-	UTextBlock* DisplayText;
+	UTextBlock* DisplayText;	
 
 protected:
 	virtual void NativeDestruct() override;

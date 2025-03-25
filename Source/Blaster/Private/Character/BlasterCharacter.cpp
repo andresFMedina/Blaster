@@ -8,6 +8,9 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "Components/WidgetComponent.h"
+#include "Net/UnrealNetwork.h"
+#include "Weapon/Weapon.h"
+#include "Character/Components/CombatComponent.h"
 
 
 ABlasterCharacter::ABlasterCharacter()
@@ -39,6 +42,24 @@ ABlasterCharacter::ABlasterCharacter()
 
 	OverheadWidget = CreateDefaultSubobject<UWidgetComponent>(TEXT("Overhead Widget"));
 	OverheadWidget->SetupAttachment(RootComponent);
+
+	CombatComponent = CreateDefaultSubobject<UCombatComponent>(TEXT("CombatComponent"));
+	CombatComponent->SetIsReplicated(true);
+}
+
+void ABlasterCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	DOREPLIFETIME(ABlasterCharacter, OverlappingWeapon);
+}
+
+void ABlasterCharacter::PostInitializeComponents()
+{
+	Super::PostInitializeComponents();
+	if (CombatComponent)
+	{
+		CombatComponent->OwnerCharacter = this;
+	}
 }
 
 // Called when the game starts or when spawned
@@ -83,10 +104,61 @@ void ABlasterCharacter::Look(const FInputActionValue& Value)
 	}
 }
 
+void ABlasterCharacter::Equip(const FInputActionValue& Value)
+{
+	if (CombatComponent && OverlappingWeapon && HasAuthority())
+	{
+		if (HasAuthority())
+		{
+			CombatComponent->EquipWeapon(OverlappingWeapon);
+		}
+		else
+		{
+			ServerEquipButtonPressed();
+		}
+	}
+}
+
+void ABlasterCharacter::OnRep_OverlappingWeapon(AWeapon* LastWeapon)
+{
+	if (OverlappingWeapon)
+	{
+		OverlappingWeapon->ShowPickupWidget(true);
+	}
+	if (LastWeapon)
+	{
+		LastWeapon->ShowPickupWidget(false);
+	}
+}
+
+void ABlasterCharacter::ServerEquipButtonPressed_Implementation()
+{
+	if (CombatComponent && OverlappingWeapon)
+	{
+		CombatComponent->EquipWeapon(OverlappingWeapon);
+	}
+}
+
 void ABlasterCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
+}
+
+void ABlasterCharacter::SetOverlappingWeapon(AWeapon* Weapon)
+{
+	if (OverlappingWeapon)
+	{
+		OverlappingWeapon->ShowPickupWidget(false);
+	}
+	OverlappingWeapon = Weapon;
+	if (IsLocallyControlled())
+	{
+		if (OverlappingWeapon) 
+		{
+			OverlappingWeapon->ShowPickupWidget(true);
+		}
+	}
 }
 
 void ABlasterCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -103,6 +175,7 @@ void ABlasterCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCo
 			EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Started, this, &ACharacter::Jump);
 			EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &ABlasterCharacter::Move);
 			EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &ABlasterCharacter::Look);
+			EnhancedInputComponent->BindAction(EquipAction, ETriggerEvent::Started, this, &ABlasterCharacter::Equip);
 		}
 
 	}
