@@ -39,6 +39,10 @@ class BLASTER_API ABlasterCharacter : public ACharacter
 	UInputAction* LookAction;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
 	UInputAction* EquipAction;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	UInputAction* CrouchAction;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
+	UInputAction* AimAction;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = HUD, meta = (AllowPrivateAccess = "true"))
 	UWidgetComponent* OverheadWidget;
@@ -63,6 +67,9 @@ protected:
 	void Look(const FInputActionValue& Value);
 
 	void Equip(const FInputActionValue& Value);
+	void CrouchPressed(const FInputActionValue& Value);
+	void AimPressed(const FInputActionValue& Value);
+	void AimReleased(const FInputActionValue& Value);
 
 private:
 	UFUNCTION()	
@@ -80,4 +87,7 @@ public:
 	FORCEINLINE UCameraComponent* GetCameraComponent() const { return CameraComponent; }
 
 	void SetOverlappingWeapon(AWeapon* Weapon);
+
+	bool IsWeaponEquipped();
+	bool IsAiming();
 };

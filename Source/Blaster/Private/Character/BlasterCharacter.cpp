@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "Character/BlasterCharacter.h"
@@ -14,7 +14,7 @@
 
 
 ABlasterCharacter::ABlasterCharacter()
-{ 	
+{
 	PrimaryActorTick.bCanEverTick = true;
 
 	bUseControllerRotationPitch = false;
@@ -30,6 +30,7 @@ ABlasterCharacter::ABlasterCharacter()
 	GetCharacterMovement()->MinAnalogWalkSpeed = 20.f;
 	GetCharacterMovement()->BrakingDecelerationWalking = 2000.f;
 	GetCharacterMovement()->BrakingDecelerationFalling = 1500.0f;
+	GetCharacterMovement()->NavAgentProps.bCanCrouch = true;
 
 	SpringArmComponent = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArmComponent"));
 	SpringArmComponent->SetupAttachment(GetMesh());
@@ -50,7 +51,7 @@ ABlasterCharacter::ABlasterCharacter()
 void ABlasterCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
-	DOREPLIFETIME(ABlasterCharacter, OverlappingWeapon);
+	DOREPLIFETIME_CONDITION(ABlasterCharacter, OverlappingWeapon, COND_OwnerOnly);
 }
 
 void ABlasterCharacter::PostInitializeComponents()
@@ -66,7 +67,20 @@ void ABlasterCharacter::PostInitializeComponents()
 void ABlasterCharacter::BeginPlay()
 {
 	Super::BeginPlay();
-	
+
+	if (HasAuthority()) 
+	{
+		APlayerController* PC = GetWorld()->GetFirstPlayerController();
+		if (PC && !PC->GetPawn())
+		{
+			PC->Possess(this);
+			UE_LOG(LogTemp, Warning, TEXT("Server forced possession of character!"));
+		}
+	}
+	else {
+		UE_LOG(LogTemp, Warning, TEXT("Not authority"));
+	}
+
 }
 
 void ABlasterCharacter::Move(const FInputActionValue& Value)
@@ -93,7 +107,7 @@ void ABlasterCharacter::Move(const FInputActionValue& Value)
 }
 
 void ABlasterCharacter::Look(const FInputActionValue& Value)
-{	
+{
 	FVector2D LookAxisVector = Value.Get<FVector2D>();
 
 	if (Controller != nullptr)
@@ -106,7 +120,7 @@ void ABlasterCharacter::Look(const FInputActionValue& Value)
 
 void ABlasterCharacter::Equip(const FInputActionValue& Value)
 {
-	if (CombatComponent && OverlappingWeapon && HasAuthority())
+	if (CombatComponent && OverlappingWeapon)
 	{
 		if (HasAuthority())
 		{
@@ -116,6 +130,32 @@ void ABlasterCharacter::Equip(const FInputActionValue& Value)
 		{
 			ServerEquipButtonPressed();
 		}
+	}
+}
+
+void ABlasterCharacter::CrouchPressed(const FInputActionValue& Value)
+{
+	if (bIsCrouched)
+	{
+		UnCrouch();
+		return;
+	}
+	Crouch();
+}
+
+void ABlasterCharacter::AimPressed(const FInputActionValue& Value)
+{
+	if (CombatComponent)
+	{
+		CombatComponent->SetAiming(true);
+	}
+}
+
+void ABlasterCharacter::AimReleased(const FInputActionValue& Value)
+{
+	if (CombatComponent)
+	{
+		CombatComponent->SetAiming(false);
 	}
 }
 
@@ -154,29 +194,51 @@ void ABlasterCharacter::SetOverlappingWeapon(AWeapon* Weapon)
 	OverlappingWeapon = Weapon;
 	if (IsLocallyControlled())
 	{
-		if (OverlappingWeapon) 
+		if (OverlappingWeapon)
 		{
 			OverlappingWeapon->ShowPickupWidget(true);
 		}
 	}
 }
 
+bool ABlasterCharacter::IsWeaponEquipped()
+{
+	return CombatComponent && CombatComponent->EquippedWeapon;
+}
+
+bool ABlasterCharacter::IsAiming()
+{
+	return CombatComponent && CombatComponent->bIsAiming;
+}
+
 void ABlasterCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
-	if (APlayerController* PlayerController = Cast<APlayerController>(GetController())) 
-	{
-		if (auto Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer()))
-		{
-			Subsystem->AddMappingContext(MoveCharacterMappingContext, 0);
-		}
+	Super::SetupPlayerInputComponent(PlayerInputComponent);
 
-		if (auto EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerInputComponent))
+	if (APlayerController* PlayerController = Cast<APlayerController>(GetController()))
+	{
+		if (PlayerController->IsLocalController())
 		{
-			EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Started, this, &ACharacter::Jump);
-			EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &ABlasterCharacter::Move);
-			EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &ABlasterCharacter::Look);
-			EnhancedInputComponent->BindAction(EquipAction, ETriggerEvent::Started, this, &ABlasterCharacter::Equip);
+			if (auto Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer()))
+			{
+				Subsystem->AddMappingContext(MoveCharacterMappingContext, 0);
+				UE_LOG(LogTemp, Warning, TEXT("Character mapped!"));
+			}
 		}
+	}
+	else {
+		UE_LOG(LogTemp, Warning, TEXT("Couldn't map character"));
+	}
+
+	if (auto EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerInputComponent))
+	{
+		EnhancedInputComponent->BindAction(JumpAction, ETriggerEvent::Started, this, &ACharacter::Jump);
+		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &ABlasterCharacter::Move);
+		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &ABlasterCharacter::Look);
+		EnhancedInputComponent->BindAction(EquipAction, ETriggerEvent::Started, this, &ABlasterCharacter::Equip);
+		EnhancedInputComponent->BindAction(CrouchAction, ETriggerEvent::Started, this, &ABlasterCharacter::CrouchPressed);
+		EnhancedInputComponent->BindAction(AimAction, ETriggerEvent::Started, this, &ABlasterCharacter::AimPressed);
+		EnhancedInputComponent->BindAction(AimAction, ETriggerEvent::Completed, this, &ABlasterCharacter::AimReleased);
 
 	}
 }

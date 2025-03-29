@@ -2,6 +2,8 @@
 #include "Character/BlasterCharacter.h"
 #include "Weapon/Weapon.h"
 #include "Engine/SkeletalMeshSocket.h"
+#include "Net/UnrealNetwork.h"
+#include "GameFramework/CharacterMovementComponent.h"
 
 
 UCombatComponent::UCombatComponent()
@@ -14,14 +16,42 @@ void UCombatComponent::BeginPlay()
 	Super::BeginPlay();
 }
 
+void UCombatComponent::SetAiming(bool bAiming)
+{
+	bIsAiming = bAiming;	
+	ServerSetAiming(bAiming);
+	
+}
+
+void UCombatComponent::OnRep_EquippedWeapon()
+{
+	if (EquippedWeapon && OwnerCharacter)
+	{
+		OwnerCharacter->GetCharacterMovement()->bOrientRotationToMovement = false;
+		OwnerCharacter->bUseControllerRotationYaw = true;
+	}
+}
+
+void UCombatComponent::ServerSetAiming_Implementation(bool bAiming)
+{
+	bIsAiming = bAiming;
+}
+
 void UCombatComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 }
 
+void UCombatComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	DOREPLIFETIME(UCombatComponent, EquippedWeapon);
+	DOREPLIFETIME(UCombatComponent, bIsAiming);
+}
+
 void UCombatComponent::EquipWeapon(AWeapon* Weapon)
 {
-	if (!OwnerCharacter || !EquippedWeapon) return;
+	if (!OwnerCharacter || !Weapon) return;
 	
 	EquippedWeapon = Weapon;
 	EquippedWeapon->SetWeaponState(EWeaponState::EWS_Equipped);
@@ -32,6 +62,9 @@ void UCombatComponent::EquipWeapon(AWeapon* Weapon)
 	}
 	EquippedWeapon->SetOwner(OwnerCharacter);
 	EquippedWeapon->ShowPickupWidget(false);
+
+	OwnerCharacter->GetCharacterMovement()->bOrientRotationToMovement = false;
+	OwnerCharacter->bUseControllerRotationYaw = true;
 		
 	
 }
