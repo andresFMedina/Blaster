@@ -6,21 +6,36 @@
 #include "GameFramework/CharacterMovementComponent.h"
 
 
-UCombatComponent::UCombatComponent()
+UCombatComponent::UCombatComponent() : 
+	BaseWalkSpeed(600.f),
+	AimWalkSpeed(450.f)
+	
 {
-	PrimaryComponentTick.bCanEverTick = false;
+	PrimaryComponentTick.bCanEverTick = false;	
 }
 
 void UCombatComponent::BeginPlay()
 {
 	Super::BeginPlay();
+
+	if (OwnerCharacter)
+	{
+		OwnerCharacter->GetCharacterMovement()->MaxWalkSpeed = BaseWalkSpeed;
+	}
 }
 
 void UCombatComponent::SetAiming(bool bAiming)
 {
 	bIsAiming = bAiming;	
 	ServerSetAiming(bAiming);
+	OwnerCharacter->GetCharacterMovement()->MaxWalkSpeed = bIsAiming ? AimWalkSpeed : BaseWalkSpeed;
 	
+}
+
+void UCombatComponent::ServerSetAiming_Implementation(bool bAiming)
+{
+	bIsAiming = bAiming;
+	OwnerCharacter->GetCharacterMovement()->MaxWalkSpeed = bIsAiming ? AimWalkSpeed : BaseWalkSpeed;
 }
 
 void UCombatComponent::OnRep_EquippedWeapon()
@@ -30,11 +45,6 @@ void UCombatComponent::OnRep_EquippedWeapon()
 		OwnerCharacter->GetCharacterMovement()->bOrientRotationToMovement = false;
 		OwnerCharacter->bUseControllerRotationYaw = true;
 	}
-}
-
-void UCombatComponent::ServerSetAiming_Implementation(bool bAiming)
-{
-	bIsAiming = bAiming;
 }
 
 void UCombatComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
