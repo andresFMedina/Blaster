@@ -15,7 +15,8 @@
 #include "Kismet/KismetMathLibrary.h"
 
 
-ABlasterCharacter::ABlasterCharacter()
+ABlasterCharacter::ABlasterCharacter() : 
+	TurningInPlace(ETurningInPlace::NoTurning)
 {
 	PrimaryActorTick.bCanEverTick = true;
 
@@ -177,12 +178,19 @@ void ABlasterCharacter::AimOffset(float DeltaTime)
 		FRotator Delta = UKismetMathLibrary::NormalizedDeltaRotator(CurrentAimRotation, StartingAimRotation);
 		AO_Yaw = Delta.Yaw;
 		bUseControllerRotationYaw = false;
+		if (TurningInPlace == ETurningInPlace::NoTurning)
+		{
+			InterpAO_Yaw = AO_Yaw;
+		}
+		bUseControllerRotationYaw = true;
+		TurnInPlace(DeltaTime);
 	}
 	if (Speed > 0.f || bIsInAir)
 	{
 		StartingAimRotation = FRotator(0.f, GetBaseAimRotation().Yaw, 0.f);
 		AO_Yaw = 0.f;
 		bUseControllerRotationYaw = true;
+		TurningInPlace = ETurningInPlace::NoTurning;
 	}
 
 	AO_Pitch = GetBaseAimRotation().Pitch;
@@ -212,6 +220,29 @@ void ABlasterCharacter::ServerEquipButtonPressed_Implementation()
 	if (CombatComponent && OverlappingWeapon)
 	{
 		CombatComponent->EquipWeapon(OverlappingWeapon);
+	}
+}
+
+void ABlasterCharacter::TurnInPlace(float DeltaTime)
+{
+	if (AO_Yaw > 90.f)
+	{
+		TurningInPlace = ETurningInPlace::TurningRight;
+	}
+	else if (AO_Yaw < -90.f)
+	{
+		TurningInPlace = ETurningInPlace::TurningLeft;
+	}
+
+	if (TurningInPlace != ETurningInPlace::NoTurning)
+	{
+		InterpAO_Yaw = FMath::FInterpTo(InterpAO_Yaw, 0.f, DeltaTime, 4.f);
+		AO_Yaw = InterpAO_Yaw;
+		if (FMath::Abs(AO_Yaw) < 15.f)
+		{
+			TurningInPlace = ETurningInPlace::NoTurning;
+			StartingAimRotation = FRotator(0.f, GetBaseAimRotation().Yaw, 0.f);
+		}
 	}
 }
 
@@ -254,6 +285,15 @@ float ABlasterCharacter::GetSpeed() const
 	FVector Velocity = GetVelocity();
 	Velocity.Z = 0.f;
 	return Velocity.Size();
+}
+
+AWeapon* ABlasterCharacter::GetEquippedWeapon() const
+{
+	if (CombatComponent)
+	{
+		return CombatComponent->EquippedWeapon;
+	}
+	return nullptr;
 }
 
 void ABlasterCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)

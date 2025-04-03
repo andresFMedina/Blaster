@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Animation/AnimInstance.h"
+#include "Enums/TurningInPlace.h"
 #include "BlasterAnimInstance.generated.h"
 
 class ABlasterCharacter;
@@ -18,8 +19,22 @@ class BLASTER_API UBlasterAnimInstance : public UAnimInstance
 public:
 	virtual void NativeInitializeAnimation() override;
 	virtual void NativeUpdateAnimation(float DeltaSeconds) override;
+
+	void SetLeftHandSocketTransform();
+
+	
+
 	
 private:
+	void SetYawOffset(const FRotator& MovementRotation, const FRotator& AimRotation, float DeltaSeconds);
+	void SetCharacterLean(float DeltaSeconds);
+
+
+private:
+	FRotator CharacterRotationLastFrame;
+	FRotator CharacterRotation;
+	FRotator DeltaRotation;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Character", meta = (AllowPrivateAccess = "true"))
 	ABlasterCharacter* BlasterCharacter;
 
@@ -53,7 +68,10 @@ private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat", meta = (AllowPrivateAccess = "true"))
 	float AO_Pitch;
 
-	FRotator CharacterRotationLastFrame;
-	FRotator CharacterRotation;
-	FRotator DeltaRotation;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat", meta = (AllowPrivateAccess = "true"))
+	FTransform LeftHandTransform;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Combat", meta = (AllowPrivateAccess = "true"))
+	ETurningInPlace TurningInPlace;
+	
 };
